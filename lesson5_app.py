@@ -25,10 +25,11 @@ plants = plants[(plants["country_long"] == country) & (plants["primary_fuel"] ==
 plants["region"] = KMeans(n_clusters=k, n_init=10, random_state=0).fit_predict(plants[["latitude", "longitude"]])
 
 # Step 4: how much power does each region make?
-regions = plants.groupby("region").agg(plants=("name", "count"), total_MW=("capacity_mw", "sum")).round()
-weakest = regions["total_MW"].idxmin()
+regions = plants.groupby("region").agg(**{"Number of plants": ("name", "count"),
+                                          "Total power (MW)": ("capacity_mw", "sum")}).round()
+weakest = regions["Total power (MW)"].idxmin()
 centre = plants[plants["region"] == weakest][["latitude", "longitude"]].mean()
-share = regions["total_MW"].max() / regions["total_MW"].sum() * 100
+share = regions["Total power (MW)"].max() / regions["Total power (MW)"].sum() * 100
 
 # Step 5: satellite map. Dot size = power, dot colour = region, star = build here!
 colours = ["red", "blue", "green", "orange", "violet", "gray"]
@@ -41,11 +42,15 @@ folium.Marker([centre["latitude"], centre["longitude"]], tooltip="Build here!",
               icon=folium.Icon(color="black", icon="star")).add_to(m)
 m.fit_bounds([[plants["latitude"].min(), plants["longitude"].min()],
               [plants["latitude"].max(), plants["longitude"].max()]])
-st_folium(m, height=500, returned_objects=[])
-st.markdown("  ".join(f":{colours[i]}[●] Region {i + 1}" for i in range(k)))
-
 regions.index = [f"Region {i + 1}" for i in regions.index]
-st.dataframe(regions)
-st.success(f"Build the next {fuel} plant near {centre['latitude']:.2f}, {centre['longitude']:.2f}: "
-           f"{regions.index[weakest]} has the LEAST {fuel} power.")
-st.metric("Power made by the biggest region", f"{share:.0f}%")
+map_box, results_box = st.columns([3, 2])
+with map_box:
+    st_folium(m, height=500, returned_objects=[])
+    st.caption("Each dot is a real power plant. A bigger dot means a bigger plant. The star shows where to build next.")
+with results_box:
+    st.markdown("  ".join(f":{colours[i]}[●] Region {i + 1}" for i in range(k)))
+    st.dataframe(regions)
+    st.caption("MW (megawatts) measures how much electricity plants can make. More MW means more power.")
+    st.success(f"Build the next {fuel} plant near {centre['latitude']:.2f}, {centre['longitude']:.2f}: "
+               f"{regions.index[weakest]} has the LEAST {fuel} power.")
+    st.metric("Share of all the power made by the biggest region", f"{share:.0f}%")
